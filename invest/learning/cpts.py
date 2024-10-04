@@ -3,7 +3,7 @@ import pyAgrum as gum
 
 def learn_cpts(data, bn, algorithm='MLE'):
     if data is None or len(data) == 0:
-        return bn  # Return the original BN if no data is provided
+        raise Exception("An error occured")
 
     with tempfile.NamedTemporaryFile(mode='w+', suffix=".csv", delete=False) as temp_file:
         data.to_csv(temp_file.name, index=False)
@@ -11,18 +11,21 @@ def learn_cpts(data, bn, algorithm='MLE'):
         # Create a BNLearner with just the filename
         learner = gum.BNLearner(temp_file.name)
         
-       # Set the DAG structure
-        learner.setDag(bn.dag())
-
-        # Use BDeu score as a form of smoothing
-        learner.useScoreAprioriBDeu()
-        
+        # Learn the BN structure and parameters
         if algorithm == 'MLE':
-            learned_model = learner.learnParameters(bn.dag())
+            learned_bn = learner.learnBN()
         elif algorithm == 'BPE':
-            learned_model = learner.learnBNParameters(bn.dag())
+            learner.useBDeuPrior()  # Use BDeu prior for Bayesian estimation
+            learned_bn = learner.learnBN()
         elif algorithm == 'EM':
             learner.useEM()
-            learned_model = learner.learnParameters(bn.dag())
+            learned_bn = learner.learnBN()
+        else:
+            return bn  # Use original BN if algorithm is not recognized
         
-    return learned_model
+        # Copy the structure from the original BN to the learned BN
+        for arc in bn.arcs():
+            if not learned_bn.existsArc(arc[0], arc[1]):
+                learned_bn.addArc(arc[0], arc[1])
+        
+    return learned_bn
